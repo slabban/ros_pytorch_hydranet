@@ -26,8 +26,7 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
 
         try 
         {
-            module_ = torch::jit::load("/home/ros2_ws/src/ros2_pytorch/model.pt");
-            module_.eval();
+            module_ = torch::jit::load("/home/ros2_ws/src/ros2_pytorch/traced_hydranet.pt");
 
         }
         catch (const c10::Error& e)
@@ -45,6 +44,7 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         
         std::shared_ptr<cv_bridge::CvImage> image_ = cv_bridge::toCvCopy(msg, "bgr8");
 
+
         at::TensorOptions options(at::ScalarType::Byte);
         std::vector<int64_t> sizes = {1, 3, msg->height, msg->width};
         at::Tensor tensor_image = torch::from_blob(image_->image.data, at::IntList(sizes), options);
@@ -57,10 +57,17 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         inputs.emplace_back(tensor_image);
 
 
-        // Execute the model and turn its output into a tensor.
-        at::Tensor output = module_.forward(inputs).toTensor();
-        
-        std::cout << output.slice(/*dim=*/1, /*start=*/0, /*end=*/5) << '\n';
+        // Execute the model and turn its output into a tuple.
+        auto outputs = module_.forward(inputs).toTuple();
+
+        auto segm_out = outputs->elements()[0].toTensor();
+        auto depth_out = outputs->elements()[1].toTensor();
+
+        std::ostringstream stream;
+        stream << "Segmentation Tensor Size is"<< ' ' <<segm_out.sizes() << '\n' << "Depth Tensor Size is" << ' ' << depth_out.sizes();
+        std::string tensor_string = stream.str();
+
+        RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", tensor_string.c_str());
         
         auto message = std_msgs::msg::String();
         message.data = "Prediction done";
