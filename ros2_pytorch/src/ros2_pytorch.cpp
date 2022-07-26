@@ -12,6 +12,7 @@
 using std::placeholders::_1;
 
 
+
 PyTorchNode::PyTorchNode() : Node("pytorch_node")
     {
         subscription_ = this->create_subscription<sensor_msgs::msg::Image>("/image_raw", 10, std::bind(&PyTorchNode::topic_callback, this, _1));
@@ -22,8 +23,9 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
 
         if(cuda>0){
             device = at::kCUDA;
+            
         }
-
+        
         try 
         {
             module_ = torch::jit::load("/home/ros2_ws/src/ros2_pytorch/traced_hydranet.pt");
@@ -38,16 +40,13 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
     
     void PyTorchNode::topic_callback(const sensor_msgs::msg::Image::SharedPtr msg)
     {
-        
-        RCLCPP_INFO(this->get_logger(), "We got an image");
     
-        
-        std::shared_ptr<cv_bridge::CvImage> image_ = cv_bridge::toCvCopy(msg, "bgr8");
+        cv::Mat imageMat = ros_to_cv(msg);
 
+        prepare_image(imageMat);
 
-        at::TensorOptions options(at::ScalarType::Byte);
-        std::vector<int64_t> sizes = {1, 3, msg->height, msg->width};
-        at::Tensor tensor_image = torch::from_blob(image_->image.data, at::IntList(sizes), options);
+        at::Tensor tensor_image = cv_to_tensor(imageMat, msg);
+
         
         std::vector<torch::jit::IValue> inputs;
 
@@ -73,7 +72,26 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         message.data = "Prediction done";
         RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", message.data.c_str());
         publisher_->publish(message);
-
         
     }
 
+    cv::Mat PyTorchNode::ros_to_cv(const sensor_msgs::msg::Image::SharedPtr& msg)
+    {
+        std::shared_ptr<cv_bridge::CvImage> image_ = cv_bridge::toCvCopy(msg, "rgb8");
+        return image_->image;
+    }
+
+    void PyTorchNode::prepare_image(cv::Mat& img_data)
+    {
+        img_data *= (1.0/255);
+    }
+
+    at::Tensor PyTorchNode::cv_to_tensor(const cv::Mat& img_data, const sensor_msgs::msg::Image::SharedPtr& msg)
+    {
+        at::TensorOptions options(at::ScalarType::Byte);
+        std::vector<int64_t> sizes = {1, 3, msg->height, msg->width};
+        at::Tensor tensor_image = torch::from_blob(img_data.data, at::IntList(sizes), options);
+        return tensor_image;
+    }
+
+    

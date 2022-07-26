@@ -36,6 +36,6 @@ docker run \
     --volume="$XAUTH:$XAUTH" \
     --volume="$PWD/../ros2_pytorch:/home/ros2_ws/src/ros2_pytorch/:rw" \
     --volume="/dev:/dev:rw" \
-    --name="ros2_torch_container" \
+    --name="ros2_torch_hydra" \
     --runtime=nvidia \
-    ros2_torch:latest
+    ros2_torch_hydra:latest

@@ -101,6 +101,11 @@ RUN rosdep init
 
 RUN rosdep update
 
+# Clone Eigen for resolving issues with Tensor library and move it to /usr/include 
+RUN git clone https://gitlab.com/libeigen/eigen.git && \
+        cp -r /eigen /usr/include/ && \
+        rm -rf /eigen
+
 RUN mkdir -p /home/ros2_ws/src
 
 COPY ./entrypoint.sh /

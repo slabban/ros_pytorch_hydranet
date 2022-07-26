@@ -24,6 +24,7 @@
 
 #include "opencv2/highgui/highgui.hpp"
 #include <opencv2/core/core.hpp>
+#include <eigen/unsupported/Eigen/CXX11/Tensor>
 
 
 
@@ -35,6 +36,10 @@ public:
     
 private:
     void topic_callback(const sensor_msgs::msg::Image::SharedPtr msg);
+
+    cv::Mat ros_to_cv(const sensor_msgs::msg::Image::SharedPtr& msg);
+    void prepare_image(cv::Mat& img_data);
+    at::Tensor cv_to_tensor(const cv::Mat& img_data, const sensor_msgs::msg::Image::SharedPtr& msg);
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;

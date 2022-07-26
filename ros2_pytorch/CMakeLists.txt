@@ -19,7 +19,7 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(Torch REQUIRED)
-
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(OpenCV REQUIRED)
 
 include_directories(include ${cv_bridge_INCLUDE_DIRS})
