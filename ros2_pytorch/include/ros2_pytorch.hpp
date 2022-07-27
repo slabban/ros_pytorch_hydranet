@@ -27,6 +27,15 @@
 #include <eigen/unsupported/Eigen/CXX11/Tensor>
 
 
+typedef struct predictions
+{
+    at::Tensor segm_out;
+    at::Tensor depth_out;
+} predictions;
+
+// TODO: Add cmap for segmentation 
+
+
 
 class PyTorchNode : public rclcpp::Node
 {
@@ -37,9 +46,15 @@ public:
 private:
     void topic_callback(const sensor_msgs::msg::Image::SharedPtr msg);
 
-    cv::Mat ros_to_cv(const sensor_msgs::msg::Image::SharedPtr& msg);
-    void prepare_image(cv::Mat& img_data);
-    at::Tensor cv_to_tensor(const cv::Mat& img_data, const sensor_msgs::msg::Image::SharedPtr& msg);
+    void ros_to_cv(const sensor_msgs::msg::Image::SharedPtr& msg, cv::Mat& cv_img);
+    std::vector<torch::jit::IValue> prepare_input(at::Tensor& input_tensor);
+    void cv_to_tensor(const cv::Mat& img_data, const sensor_msgs::msg::Image::SharedPtr& msg, at::Tensor& input_tensor);
+    predictions predict(const std::vector<torch::jit::IValue>& inputs);
+    void print_output(const predictions& preds);
+    void publish_message();
+
+    // TODO: create segmentation map from segm output
+    // TODO: create depth map from depth output
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
