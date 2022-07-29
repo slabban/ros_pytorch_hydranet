@@ -46,15 +46,15 @@ public:
 private:
     void topic_callback(const sensor_msgs::msg::Image::SharedPtr msg);
 
-    void ros_to_cv(const sensor_msgs::msg::Image::SharedPtr& msg, cv::Mat& cv_img);
+    cv::Mat ros_to_cv(const sensor_msgs::msg::Image::SharedPtr& msg, cv::Mat& cv_img);
     std::vector<torch::jit::IValue> prepare_input(at::Tensor& input_tensor);
     void cv_to_tensor(const cv::Mat& img_data, const sensor_msgs::msg::Image::SharedPtr& msg, at::Tensor& input_tensor);
     predictions predict(const std::vector<torch::jit::IValue>& inputs);
     void print_output(const predictions& preds);
     void publish_message();
-
     // TODO: create segmentation map from segm output
     // TODO: create depth map from depth output
+    cv::Mat depth_to_cv( at::Tensor& depth, const sensor_msgs::msg::Image::SharedPtr& msg);
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
