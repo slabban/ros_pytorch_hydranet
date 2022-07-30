@@ -57,7 +57,6 @@ private:
     cv::Mat depth_to_cv( at::Tensor& depth, const cv::Mat& msg);
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription_;
-    //rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
     torch::jit::script::Module module_;
     c10::DeviceType device = at::kCPU;

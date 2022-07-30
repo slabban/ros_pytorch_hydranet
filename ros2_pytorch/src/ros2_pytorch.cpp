@@ -17,7 +17,6 @@ using std::placeholders::_1;
 PyTorchNode::PyTorchNode() : Node("pytorch_node")
     {
         subscription_ = this->create_subscription<sensor_msgs::msg::Image>("/image_raw", 1, std::bind(&PyTorchNode::topic_callback, this, _1));
-        // publisher_ = this->create_publisher<std_msgs::msg::String>("topic_out", 10);
         publisher_ = this->create_publisher<sensor_msgs::msg::Image>("topic_out", 1);
 
         this->declare_parameter("GPU", 0);
@@ -62,7 +61,7 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         cv::minMaxLoc(output_depth_Mat, &min_val, &max_val);
         output_depth_Mat = 255 * (output_depth_Mat - min_val) / (max_val - min_val);
         output_depth_Mat.convertTo(depth_visual, CV_8U);
-        cv::applyColorMap(depth_visual, depth_visual, 2); 
+        cv::applyColorMap(depth_visual, depth_visual, 4); 
         cv::namedWindow("FULL", cv::WINDOW_AUTOSIZE);
         cv::imshow("FULL", depth_visual);
         cv::waitKey(1);
@@ -76,14 +75,14 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         cv::Mat cv_out;
         cv::cvtColor(cv_img, cv_out, CV_BGR2RGB);
         cv::resize(cv_out, cv_out, cv::Size(msg->width, msg->height));
-        cv::Mat input_cv_ = cv::Mat(msg->height, msg->width, CV_8UC3);
-        cv_out.convertTo(input_cv_, CV_8UC3, 1.0f/255.0f);
+        //cv::Mat input_cv_ = cv::Mat(msg->height, msg->width, CV_32FC3);
+        cv_out.convertTo(cv_out, CV_32FC3, 1.0f/255.0f);
         return cv_out;
     }
 
     std::vector<torch::jit::IValue> PyTorchNode::prepare_input(at::Tensor& input_tensor)
     {
-        input_tensor = input_tensor.to(device).toType(at::kFloat);
+        input_tensor = input_tensor.to(device);
 
         std::vector<torch::jit::IValue> inputs;
         inputs.emplace_back(input_tensor);
@@ -93,14 +92,14 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
 
     void PyTorchNode::cv_to_tensor(const cv::Mat& img_data, const sensor_msgs::msg::Image::SharedPtr& msg, at::Tensor& input_tensor)
     {
-        at::TensorOptions options(at::ScalarType::Byte);
+
         auto n_channels = img_data.channels();
-        input_tensor = torch::from_blob(img_data.data, {1, img_data.rows, img_data.cols, n_channels}, options);
+        input_tensor = torch::from_blob(img_data.data, {1, img_data.rows, img_data.cols, n_channels});
         input_tensor = input_tensor.permute({0, 3, 1, 2});
         input_tensor[0][0].sub(0.485).div(0.229);
         input_tensor[0][1].sub(0.456).div(0.224);
         input_tensor[0][2].sub(0.406).div(0.225);
-        //input_tensor= torch::from_blob(img_data.data, at::IntList(sizes), options);
+
     }
 
     predictions PyTorchNode::predict(const std::vector<torch::jit::IValue>& inputs)
@@ -108,7 +107,6 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         auto outputs = module_.forward(inputs).toTuple();
         predictions preds = { };
         preds.segm_out = outputs->elements()[0].toTensor().cpu();
-        //preds.depth_out = outputs->elements()[1].toTensor().cpu();
         preds.depth_out = outputs->elements()[1].toTensor().squeeze().cpu();
         return preds;
     }
@@ -131,17 +129,13 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
     }
 
     cv::Mat PyTorchNode::depth_to_cv(at::Tensor& depth, const cv::Mat& msg)
-    {   //cv::Size(depth.size(1), depth.size(0)) 
+    { 
         int64_t height = depth.sizes()[0];
         int64_t width = depth.sizes()[1];
-        //depth = depth.reshape({width*height});
-        cv::Mat output_mat(height, width, CV_32FC1, depth.data_ptr());
-        //cv::Mat output_mat = cv::Mat(msg.rows, msg.cols, CV_32FC1, depth.data_ptr<float>());
-        // cv::Mat output_cv_ = cv::Mat(msg.rows,msg.cols, CV_32FC1);
+        cv::Mat output_mat(height, width, CV_32FC1, depth.data_ptr<float>());
         cv::Mat output_cv_ ;
         cv::Size original_size = cv::Size(msg.cols, msg.rows);
         cv::resize(output_mat, output_cv_, original_size,cv::INTER_CUBIC);
-        //output_cv_ = cv::abs(output_cv_);
         return output_cv_.clone();
     }
 
