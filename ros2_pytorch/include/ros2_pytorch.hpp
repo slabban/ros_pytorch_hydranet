@@ -51,13 +51,14 @@ private:
     void cv_to_tensor(const cv::Mat& img_data, const sensor_msgs::msg::Image::SharedPtr& msg, at::Tensor& input_tensor);
     predictions predict(const std::vector<torch::jit::IValue>& inputs);
     void print_output(const predictions& preds);
-    void publish_message();
+    void publish_message(cv::Mat& depth);
     // TODO: create segmentation map from segm output
     // TODO: create depth map from depth output
-    cv::Mat depth_to_cv( at::Tensor& depth, const sensor_msgs::msg::Image::SharedPtr& msg);
+    cv::Mat depth_to_cv( at::Tensor& depth, const cv::Mat& msg);
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription_;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
+    //rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
+    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
     torch::jit::script::Module module_;
     c10::DeviceType device = at::kCPU;
     
