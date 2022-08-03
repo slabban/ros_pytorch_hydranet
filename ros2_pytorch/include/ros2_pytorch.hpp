@@ -51,9 +51,8 @@ private:
     void cv_to_tensor(const cv::Mat& img_data, const sensor_msgs::msg::Image::SharedPtr& msg, at::Tensor& input_tensor);
     predictions predict(const std::vector<torch::jit::IValue>& inputs);
     void print_output(const predictions& preds);
-    void publish_message(cv::Mat& depth);
+    void publish_depth_image(cv::Mat& depth);
     // TODO: create segmentation map from segm output
-    // TODO: create depth map from depth output
     cv::Mat depth_to_cv( at::Tensor& depth, const cv::Mat& msg);
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription_;

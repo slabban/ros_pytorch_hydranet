@@ -51,17 +51,14 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         cv_to_tensor(cv_out, msg, image_tensor);
         auto inputs = prepare_input(image_tensor);
         predictions preds = predict(inputs);
+
         #if DEBUG
         print_output(preds);
         #endif
-        cv::Mat output_depth_Mat = depth_to_cv(preds.depth_out, cv_out);
-        publish_message(output_depth_Mat);
-        double min_val, max_val;
-        cv::Mat depth_visual;
-        cv::minMaxLoc(output_depth_Mat, &min_val, &max_val);
-        output_depth_Mat = 255 * (output_depth_Mat - min_val) / (max_val - min_val);
-        output_depth_Mat.convertTo(depth_visual, CV_8U);
-        cv::applyColorMap(depth_visual, depth_visual, 4); 
+        
+        cv::Mat depth_visual = depth_to_cv(preds.depth_out, cv_out);
+        
+        publish_depth_image(depth_visual);
         cv::namedWindow("FULL", cv::WINDOW_AUTOSIZE);
         cv::imshow("FULL", depth_visual);
         cv::waitKey(1);
@@ -121,9 +118,9 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", tensor_string.c_str());
     }
 
-    void PyTorchNode::publish_message(cv::Mat& depth)
+    void PyTorchNode::publish_depth_image(cv::Mat& depth)
     {   
-        sensor_msgs::msg::Image::SharedPtr msg = cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::TYPE_32FC1, depth).toImageMsg();
+        sensor_msgs::msg::Image::SharedPtr msg = cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::TYPE_8UC3, depth).toImageMsg();
         publisher_->publish(*msg.get());
 
     }
@@ -133,10 +130,16 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         int64_t height = depth.sizes()[0];
         int64_t width = depth.sizes()[1];
         cv::Mat output_mat(height, width, CV_32FC1, depth.data_ptr<float>());
-        cv::Mat output_cv_ ;
+        //cv::Mat output_cv_ ;
         cv::Size original_size = cv::Size(msg.cols, msg.rows);
-        cv::resize(output_mat, output_cv_, original_size,cv::INTER_CUBIC);
-        return output_cv_.clone();
+        cv::resize(output_mat, output_mat, original_size,cv::INTER_CUBIC);
+        double min_val, max_val;
+        cv::Mat depth_visual;
+        cv::minMaxLoc(output_mat, &min_val, &max_val);
+        output_mat = 255 * (output_mat - min_val) / (max_val - min_val);
+        output_mat.convertTo(depth_visual, CV_8U);
+        cv::applyColorMap(depth_visual, depth_visual, cv::COLORMAP_MAGMA); 
+        return depth_visual;
     }
 
     
