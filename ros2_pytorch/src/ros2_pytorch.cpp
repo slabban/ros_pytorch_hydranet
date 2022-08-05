@@ -56,11 +56,16 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         print_output(preds);
         #endif
         
+        cv::Mat segm_viual = segm_to_cv(preds.segm_out, cv_out);
         cv::Mat depth_visual = depth_to_cv(preds.depth_out, cv_out);
         
         publish_depth_image(depth_visual);
-        cv::namedWindow("FULL", cv::WINDOW_AUTOSIZE);
-        cv::imshow("FULL", depth_visual);
+        cv::namedWindow("DEPTH", cv::WINDOW_AUTOSIZE);
+        cv::imshow("DEPTH", depth_visual);
+        //cv::waitKey(1);
+
+        cv::namedWindow("Segmentation", cv::WINDOW_AUTOSIZE);
+        cv::imshow("Segmentation", segm_viual);
         cv::waitKey(1);
     }
 
@@ -72,7 +77,6 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         cv::Mat cv_out;
         cv::cvtColor(cv_img, cv_out, CV_BGR2RGB);
         cv::resize(cv_out, cv_out, cv::Size(msg->width, msg->height));
-        //cv::Mat input_cv_ = cv::Mat(msg->height, msg->width, CV_32FC3);
         cv_out.convertTo(cv_out, CV_32FC3, 1.0f/255.0f);
         return cv_out;
     }
@@ -102,8 +106,8 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
     predictions PyTorchNode::predict(const std::vector<torch::jit::IValue>& inputs)
     {
         auto outputs = module_.forward(inputs).toTuple();
-        predictions preds = { };
-        preds.segm_out = outputs->elements()[0].toTensor().cpu();
+        predictions preds = {};
+        preds.segm_out = outputs->elements()[0].toTensor().squeeze().permute({1,2,0}).argmax(2).toType(at::kInt).cpu();
         preds.depth_out = outputs->elements()[1].toTensor().squeeze().cpu();
         return preds;
     }
@@ -111,7 +115,7 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
     void PyTorchNode::print_output(const predictions& preds)
     {
         std::ostringstream stream;
-        stream << "Segmentation Tensor Size is"<< ' ' <<preds.segm_out.sizes() << '\n' << "Depth Tensor Size is" << ' ' << preds.depth_out.sizes() ;
+        stream << "Segmentation Tensor Size is"<< ' '  <<preds.segm_out.sizes() << '\n' << "Depth Tensor Size is" << ' ' << preds.depth_out.sizes() ;
         //"and of type" << ' ' << preds.depth_out.type();
         std::string tensor_string = stream.str();
 
@@ -125,12 +129,53 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
 
     }
 
+    cv::Mat PyTorchNode::segm_to_cv(at::Tensor& segm, const cv::Mat& msg)
+    {   
+        int64_t height = segm.sizes()[0];
+        int64_t width = segm.sizes()[1];
+        cv::Mat output_mat(height, width, CV_8U, segm.data_ptr<int>());
+        cv::Size original_size = cv::Size(msg.cols, msg.rows);
+        cv::resize(output_mat, output_mat, original_size,cv::INTER_CUBIC);
+
+        cv::Mat segm_visual(output_mat.rows, output_mat.cols, CV_8U);
+        //cv::Mat segm_visual;
+        //output_mat.convertTo(segm_visual, CV_8U);
+
+        for(size_t i=0; i<=segm_visual.rows; ++i)
+        {
+            for(size_t j=0; j<=segm_visual.cols; ++j)
+            {   
+                //cv::Vec3i& color_source= output_mat.at<cv::Vec3i>(cv::Point(j,i));
+                cv::Vec3i color_dest= segm_visual.at<cv::Vec3i>(cv::Point(j,i));
+
+                color_dest[0] = cmap[output_mat.data[i+j]][0];
+                color_dest[1] = cmap[output_mat.data[i+j]][1];
+                color_dest[2] = cmap[output_mat.data[i+j]][2];
+
+                //segm_visual.at<cv::Vec3i>(cv::Point(j,i)) = color_dest;
+                //segm_visual.data[i+j] = cmap[output_mat.data[i+j]];
+                //cv::Point2i pixel(segm_visual.data[i], segm_visual.data[j]);
+            }
+        }
+
+
+        //for(i=0; )
+        // cv::Mat segm_visual;
+        // output_mat.convertTo(segm_visual, CV_8U);
+        
+        //segm.argmax(2).type(np));
+        //output_mat = cmap[];
+        //output_mat.convertTo(segm_visual, CV_8U);
+
+        return segm_visual;
+        
+    }
+
     cv::Mat PyTorchNode::depth_to_cv(at::Tensor& depth, const cv::Mat& msg)
     { 
         int64_t height = depth.sizes()[0];
         int64_t width = depth.sizes()[1];
         cv::Mat output_mat(height, width, CV_32FC1, depth.data_ptr<float>());
-        //cv::Mat output_cv_ ;
         cv::Size original_size = cv::Size(msg.cols, msg.rows);
         cv::resize(output_mat, output_mat, original_size,cv::INTER_CUBIC);
         double min_val, max_val;

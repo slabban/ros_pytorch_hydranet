@@ -27,13 +27,14 @@
 #include <eigen/unsupported/Eigen/CXX11/Tensor>
 
 
+
 typedef struct predictions
 {
     at::Tensor segm_out;
     at::Tensor depth_out;
 } predictions;
 
-// TODO: Add cmap for segmentation 
+
 
 
 
@@ -52,13 +53,57 @@ private:
     predictions predict(const std::vector<torch::jit::IValue>& inputs);
     void print_output(const predictions& preds);
     void publish_depth_image(cv::Mat& depth);
-    // TODO: create segmentation map from segm output
-    cv::Mat depth_to_cv( at::Tensor& depth, const cv::Mat& msg);
+    cv::Mat segm_to_cv(at::Tensor& segm, const cv::Mat& msg);
+    cv::Mat depth_to_cv(at::Tensor& depth, const cv::Mat& msg);
+    
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
     torch::jit::script::Module module_;
     c10::DeviceType device = at::kCPU;
+
+    std::array<std::array<int,3>, 40> cmap = {{ 
+    { 0, 0, 0},
+    {128, 0, 0},
+    {0, 128,   0},
+    {128, 128,   0},
+    {0,   0, 128},
+    {128,   0, 128},
+    {0, 128, 128},
+    {128, 128, 128},
+    {64,   0,   0},
+    {192,  0,   0},
+    {64, 128,   0},
+    {192, 128,   0},
+    {64,  0, 128},
+    {192,  0, 128},
+    {64, 128, 128},
+    {192, 128, 128},
+    {0,   64,   0},
+    {128,  64,   0},
+    {0, 192,   0},
+    {128, 192,   0},
+    {0,  64, 128},
+    {128,  64, 128},
+    {0, 192, 128},
+    {128, 192, 128},
+    {64,  64,   0},
+    {192, 64,   0},
+    {64,  192,   0},
+    {192, 192,   0},
+    {64,  64, 128},
+    {192,  64, 128},
+    {64, 192, 128},
+    {192, 192, 128},
+    {0,   0,  64},
+    {128,  0,  64},
+    {0, 128,  64},
+    {128, 128,  64},
+    {0,   0, 192},
+    {128, 0, 192},
+    {0, 128, 192},
+    {128, 128, 192}
+    }};
     
 
 };
