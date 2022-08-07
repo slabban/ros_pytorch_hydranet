@@ -59,10 +59,9 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         cv::Mat segm_viual = segm_to_cv(preds.segm_out, cv_out);
         cv::Mat depth_visual = depth_to_cv(preds.depth_out, cv_out);
         
-        publish_depth_image(depth_visual);
-        cv::namedWindow("DEPTH", cv::WINDOW_AUTOSIZE);
-        cv::imshow("DEPTH", depth_visual);
-        //cv::waitKey(1);
+        // publish_depth_image(depth_visual);
+        // cv::namedWindow("DEPTH", cv::WINDOW_AUTOSIZE);
+        // cv::imshow("DEPTH", depth_visual);
 
         cv::namedWindow("Segmentation", cv::WINDOW_AUTOSIZE);
         cv::imshow("Segmentation", segm_viual);
@@ -107,7 +106,7 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
     {
         auto outputs = module_.forward(inputs).toTuple();
         predictions preds = {};
-        preds.segm_out = outputs->elements()[0].toTensor().squeeze().permute({1,2,0}).argmax(2).toType(at::kInt).cpu();
+        preds.segm_out = outputs->elements()[0].toTensor().squeeze().permute({1,2,0}).argmax(2).toType(torch::kUInt8).cpu();
         preds.depth_out = outputs->elements()[1].toTensor().squeeze().cpu();
         return preds;
     }
@@ -133,41 +132,36 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
     {   
         int64_t height = segm.sizes()[0];
         int64_t width = segm.sizes()[1];
-        cv::Mat output_mat(height, width, CV_8U, segm.data_ptr<int>());
+        cv::Mat output_mat(height, width, CV_8U, segm.data_ptr());
         cv::Size original_size = cv::Size(msg.cols, msg.rows);
         cv::resize(output_mat, output_mat, original_size,cv::INTER_CUBIC);
 
-        cv::Mat segm_visual(output_mat.rows, output_mat.cols, CV_8U);
-        //cv::Mat segm_visual;
-        //output_mat.convertTo(segm_visual, CV_8U);
+        //cv::Mat segm_visual(output_mat.rows, output_mat.cols, CV_8UC3);
+        // cv::Mat mask;
+        // output_mat.convertTo(mask, CV_8UC3);
 
-        for(size_t i=0; i<=segm_visual.rows; ++i)
+        cv::Mat mask(msg.cols, msg.rows, CV_8UC3);
+        // cv::Mat mask;
+        // mask.create(original_size, CV_8UC3);
+        // std::vector<cv::Mat> three_channels;
+        // cv::split(mask,three_channels);
+
+
+        for(int j=0; j<mask.rows; j++)
         {
-            for(size_t j=0; j<=segm_visual.cols; ++j)
+            for(int i=0; i<mask.cols; i++)
             {   
-                //cv::Vec3i& color_source= output_mat.at<cv::Vec3i>(cv::Point(j,i));
-                cv::Vec3i color_dest= segm_visual.at<cv::Vec3i>(cv::Point(j,i));
+                uint8_t color_source= output_mat.at<uint8_t>(cv::Point(j,i));
+                mask.at<cv::Vec3b>(i,j)[0] = cmap[color_source][0];
+                mask.at<cv::Vec3b>(i,j)[1] = cmap[color_source][1];
+                mask.at<cv::Vec3b>(i,j)[2] = cmap[color_source][2];
 
-                color_dest[0] = cmap[output_mat.data[i+j]][0];
-                color_dest[1] = cmap[output_mat.data[i+j]][1];
-                color_dest[2] = cmap[output_mat.data[i+j]][2];
 
-                //segm_visual.at<cv::Vec3i>(cv::Point(j,i)) = color_dest;
-                //segm_visual.data[i+j] = cmap[output_mat.data[i+j]];
-                //cv::Point2i pixel(segm_visual.data[i], segm_visual.data[j]);
             }
         }
 
 
-        //for(i=0; )
-        // cv::Mat segm_visual;
-        // output_mat.convertTo(segm_visual, CV_8U);
-        
-        //segm.argmax(2).type(np));
-        //output_mat = cmap[];
-        //output_mat.convertTo(segm_visual, CV_8U);
-
-        return segm_visual;
+        return mask;
         
     }
 
