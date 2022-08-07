@@ -17,7 +17,8 @@ using std::placeholders::_1;
 PyTorchNode::PyTorchNode() : Node("pytorch_node")
     {
         subscription_ = this->create_subscription<sensor_msgs::msg::Image>("/image_raw", 1, std::bind(&PyTorchNode::topic_callback, this, _1));
-        publisher_ = this->create_publisher<sensor_msgs::msg::Image>("topic_out", 1);
+        segmentation_img_publisher_ = this->create_publisher<sensor_msgs::msg::Image>("segm_image", 1);
+        depth_img_publisher_ = this->create_publisher<sensor_msgs::msg::Image>("depth_image", 1);
 
         this->declare_parameter("GPU", 0);
         int cuda = this->get_parameter("GPU").as_int();
@@ -56,15 +57,16 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
         print_output(preds);
         #endif
         
-        cv::Mat segm_viual = segm_to_cv(preds.segm_out, cv_out);
+        cv::Mat segm_visual = segm_to_cv(preds.segm_out, cv_out);
         cv::Mat depth_visual = depth_to_cv(preds.depth_out, cv_out);
         
-        // publish_depth_image(depth_visual);
-        // cv::namedWindow("DEPTH", cv::WINDOW_AUTOSIZE);
-        // cv::imshow("DEPTH", depth_visual);
+        publish_segmentation_image(segm_visual);
+        publish_depth_image(depth_visual);
+        cv::namedWindow("DEPTH", cv::WINDOW_AUTOSIZE);
+        cv::imshow("DEPTH", depth_visual);
 
         cv::namedWindow("Segmentation", cv::WINDOW_AUTOSIZE);
-        cv::imshow("Segmentation", segm_viual);
+        cv::imshow("Segmentation", segm_visual);
         cv::waitKey(1);
     }
 
@@ -115,16 +117,20 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
     {
         std::ostringstream stream;
         stream << "Segmentation Tensor Size is"<< ' '  <<preds.segm_out.sizes() << '\n' << "Depth Tensor Size is" << ' ' << preds.depth_out.sizes() ;
-        //"and of type" << ' ' << preds.depth_out.type();
         std::string tensor_string = stream.str();
 
         RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", tensor_string.c_str());
     }
 
+    void PyTorchNode::publish_segmentation_image(cv::Mat& segm){
+        sensor_msgs::msg::Image::SharedPtr msg = cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::TYPE_8UC3, segm).toImageMsg();
+        segmentation_img_publisher_->publish(*msg.get());
+    }
+
     void PyTorchNode::publish_depth_image(cv::Mat& depth)
     {   
         sensor_msgs::msg::Image::SharedPtr msg = cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::TYPE_8UC3, depth).toImageMsg();
-        publisher_->publish(*msg.get());
+        depth_img_publisher_->publish(*msg.get());
 
     }
 
@@ -132,37 +138,22 @@ PyTorchNode::PyTorchNode() : Node("pytorch_node")
     {   
         int64_t height = segm.sizes()[0];
         int64_t width = segm.sizes()[1];
-        cv::Mat output_mat(height, width, CV_8U, segm.data_ptr());
+        cv::Mat output_mat(height, width, CV_8U, segm.data_ptr<uint8_t>());
         cv::Size original_size = cv::Size(msg.cols, msg.rows);
         cv::resize(output_mat, output_mat, original_size,cv::INTER_CUBIC);
-
-        //cv::Mat segm_visual(output_mat.rows, output_mat.cols, CV_8UC3);
-        // cv::Mat mask;
-        // output_mat.convertTo(mask, CV_8UC3);
-
-        cv::Mat mask(msg.cols, msg.rows, CV_8UC3);
-        // cv::Mat mask;
-        // mask.create(original_size, CV_8UC3);
-        // std::vector<cv::Mat> three_channels;
-        // cv::split(mask,three_channels);
-
+        cv::Mat mask(output_mat.size(), CV_8UC3);
 
         for(int j=0; j<mask.rows; j++)
         {
             for(int i=0; i<mask.cols; i++)
             {   
-                uint8_t color_source= output_mat.at<uint8_t>(cv::Point(j,i));
-                mask.at<cv::Vec3b>(i,j)[0] = cmap[color_source][0];
-                mask.at<cv::Vec3b>(i,j)[1] = cmap[color_source][1];
-                mask.at<cv::Vec3b>(i,j)[2] = cmap[color_source][2];
-
-
+                uint8_t color_source= output_mat.at<uint8_t>(cv::Point(i,j));
+                mask.at<cv::Vec3b>(j,i)[0] = cmap[color_source][0];
+                mask.at<cv::Vec3b>(j,i)[1] = cmap[color_source][1];
+                mask.at<cv::Vec3b>(j,i)[2] = cmap[color_source][2];
             }
         }
-
-
         return mask;
-        
     }
 
     cv::Mat PyTorchNode::depth_to_cv(at::Tensor& depth, const cv::Mat& msg)
