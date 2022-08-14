@@ -47,13 +47,13 @@ public:
 private:
     void topic_callback(const sensor_msgs::msg::Image::SharedPtr msg);
 
-    cv::Mat ros_to_cv(const sensor_msgs::msg::Image::SharedPtr& msg, cv::Mat& cv_img);
+    cv::Mat ros_to_cv(const sensor_msgs::msg::Image::SharedPtr& msg);
     std::vector<torch::jit::IValue> prepare_input(at::Tensor& input_tensor);
-    void cv_to_tensor(const cv::Mat& img_data, const sensor_msgs::msg::Image::SharedPtr& msg, at::Tensor& input_tensor);
+    at::Tensor cv_to_tensor();
     predictions predict(const std::vector<torch::jit::IValue>& inputs);
     void print_output(const predictions& preds);
-    cv::Mat segm_to_cv(at::Tensor& segm, const cv::Mat& msg);
-    cv::Mat depth_to_cv(at::Tensor& depth, const cv::Mat& msg);
+    cv::Mat segm_to_cv(at::Tensor& segm);
+    cv::Mat depth_to_cv(at::Tensor& depth);
     void publish_segmentation_image(cv::Mat& segm);
     void publish_depth_image(cv::Mat& depth);
     
@@ -63,6 +63,11 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr segmentation_img_publisher_;
     torch::jit::script::Module module_;
     c10::DeviceType device = at::kCPU;
+
+    cv::Mat input_img_cv_;
+    cv::Mat segm_img_cv_;
+    cv::Mat depth_img_cv_;
+
 
     std::array<std::array<int,3>, 40> cmap = {{ 
     { 128, 128, 192},
